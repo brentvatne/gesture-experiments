@@ -32,6 +32,9 @@ const getItems = (
     ));
 };
 
+const HEADER_HEIGHT = 60;
+const WINDOW_HEIGHT = Dimensions.get('window').height;
+
 const stateToPropMappings = {
   [State.BEGAN]: 'onBegan',
   [State.FAILED]: 'onFailed',
@@ -39,9 +42,6 @@ const stateToPropMappings = {
   [State.ACTIVE]: 'onActivated',
   [State.END]: 'onEnded',
 };
-
-const HEADER_HEIGHT = 60;
-const WINDOW_HEIGHT = Dimensions.get('window').height;
 
 // When scroll offset is 0, moving your finger down will drag the header and scrollview up at the same time
 // When the scroll offset is > 0, ignore the pan gesture
@@ -53,12 +53,7 @@ export default class App extends React.Component {
     const panY = new Animated.Value(0);
     const scrollY = new Animated.Value(-HEADER_HEIGHT);
 
-    scrollY.addListener(({ value }) => console.log(value));
-
-    // panY.addListener(({ value }) => console.log(value));
-    // scrollY.addListener(({ value }) => console.log(value));
-
-    this._onPanGestureEvent = Animated.event(
+    this._onScrollPanGestureEvent = Animated.event(
       [{ nativeEvent: { translationY: panY } }],
       { useNativeDriver: true }
     );
@@ -68,11 +63,17 @@ export default class App extends React.Component {
       { useNativeDriver: true }
     );
 
-    this.state = { items: getItems(), panY, scrollY, scrollWaitsForPan: true };
+    this.state = {
+      items: getItems(),
+      scrollY,
+      scrollWaitsForPan: true,
+      panY,
+      modalIsHidden: false,
+    };
   }
 
   _updateScrollState = e => {
-    if (e.nativeEvent.targetContentOffset.y === 0) {
+    if (e.nativeEvent.targetContentOffset.y === -HEADER_HEIGHT) {
       this.setState({ scrollWaitsForPan: true });
     } else {
       this.setState({ scrollWaitsForPan: false });
@@ -81,6 +82,35 @@ export default class App extends React.Component {
 
   _handlePanStateChange = e => {
     const { oldState, state } = e.nativeEvent;
+
+    if (state === State.END) {
+      this._handleReleasePan(e);
+    }
+  };
+
+  _handleReleasePan = e => {
+    const { oldState, state, translationY, velocityY } = e.nativeEvent;
+
+    let toValue = 0;
+    if (translationY > WINDOW_HEIGHT / 3) {
+      toValue = WINDOW_HEIGHT;
+    }
+
+    this.state.panY.flattenOffset();
+
+    Animated.spring(this.state.panY, {
+      toValue,
+      stiffness: 3000,
+      damping: 500,
+      mass: 3,
+      useNativeDriver: this.state.panY.__isNative,
+    }).start(({ finished }) => {
+      this.state.panY.extractOffset();
+      this.state.panY.setValue(0);
+      if (finished) {
+        this.setState({ modalIsHidden: true });
+      }
+    });
   };
 
   render() {
@@ -102,46 +132,69 @@ export default class App extends React.Component {
           style={{ flex: 1, transform: [{ translateY: panTranslateY }] }}>
           <PanGestureHandler
             id="pan"
-            waitFor="outer-pan"
             maxDeltaY={30}
+            waitFor={this.state.scrollWaitsForPan ? '' : 'scroll'}
             minOffsetY={1}
-            onGestureEvent={this._onPanGestureEvent}
+            onGestureEvent={this._onScrollPanGestureEvent}
             onHandlerStateChange={this._handlePanStateChange}>
-            <AnimatedScrollView
-              id="scroll"
-              contentInset={{ top: HEADER_HEIGHT }}
-              contentOffset={{ y: -HEADER_HEIGHT }}
-              waitFor={this.state.scrollWaitsForPan ? 'pan' : ''}
-              onScrollEndDrag={this._updateScrollState}
-              onScroll={this._onScrollEvent}
-              scrollEventThrottle={1}
-              style={{ height: WINDOW_HEIGHT }}>
-              <View>{this.state.items}</View>
-            </AnimatedScrollView>
-          </PanGestureHandler>
-          <PanGestureHandler>
-            <Animated.View
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: HEADER_HEIGHT,
-                paddingTop: 30,
-                backgroundColor: 'red',
-                transform: [{ translateY: headerTranslateY }],
-              }}>
-              <Text
-                style={{ fontSize: 18, color: '#fff', textAlign: 'center' }}>
-                Hello there
-              </Text>
+            <Animated.View style={{ flex: 1 }}>
+              <View
+                style={{
+                  height: 200,
+                  position: 'absolute',
+                  top: -200,
+                  left: 0,
+                  right: 0,
+                  backgroundColor: 'green',
+                }}
+              />
+              <AnimatedScrollView
+                id="scroll"
+                contentInset={{ top: HEADER_HEIGHT }}
+                contentOffset={{ y: -HEADER_HEIGHT }}
+                waitFor={this.state.scrollWaitsForPan ? 'pan' : ''}
+                onScrollEndDrag={this._updateScrollState}
+                onScroll={this._onScrollEvent}
+                scrollEventThrottle={1}
+                style={{ height: WINDOW_HEIGHT }}>
+                <View>{this.state.items}</View>
+              </AnimatedScrollView>
             </Animated.View>
           </PanGestureHandler>
+          <View
+            style={{
+              height: 60,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+            }}>
+            <PanGestureHandler
+              minDeltaY={10}
+              onHandlerStateChange={this._handlePanStateChange}
+              shouldCancelWhenOutside={false}
+              onGestureEvent={this._onScrollPanGestureEvent}>
+              <Animated.View
+                style={{
+                  height: HEADER_HEIGHT,
+                  paddingTop: 30,
+                  backgroundColor: 'red',
+                  transform: [{ translateY: headerTranslateY }],
+                }}>
+                <Text
+                  style={{ fontSize: 18, color: '#fff', textAlign: 'center' }}>
+                  Hello there
+                </Text>
+              </Animated.View>
+            </PanGestureHandler>
+          </View>
         </Animated.View>
       </View>
     );
   }
 }
+
+const noop = () => {};
 
 const styles = StyleSheet.create({
   container: {
