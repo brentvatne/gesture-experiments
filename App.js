@@ -32,7 +32,7 @@ const getItems = (
     ));
 };
 
-const HEADER_HEIGHT = 60;
+const HEADER_HEIGHT = 80;
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 
 const stateToPropMappings = {
@@ -82,6 +82,7 @@ export default class App extends React.Component {
 
   _handlePanStateChange = e => {
     const { oldState, state } = e.nativeEvent;
+    console.log(e.nativeEvent);
 
     if (state === State.END) {
       this._handleReleasePan(e);
@@ -107,8 +108,10 @@ export default class App extends React.Component {
     }).start(({ finished }) => {
       this.state.panY.extractOffset();
       this.state.panY.setValue(0);
+      let modalIsHidden = toValue !== 0;
+      console.log({ modalIsHidden: modalIsHidden ? 'true' : 'false' });
       if (finished) {
-        this.setState({ modalIsHidden: true });
+        this.setState({ modalIsHidden });
       }
     });
   };
@@ -120,11 +123,23 @@ export default class App extends React.Component {
       extrapolate: 'clamp',
     });
 
-    const panTranslateY = this.state.panY.interpolate({
+    let panTranslateY = this.state.panY.interpolate({
       inputRange: [0, WINDOW_HEIGHT],
       outputRange: [0, WINDOW_HEIGHT],
       extrapolate: 'clamp',
     });
+
+    let panProps = {
+      maxDeltaY: 30,
+      minDeltaY: 5000, // gesture props not being properly updated, need to workaround like this
+      minOffsetY: 1,
+    };
+
+    if (this.state.modalIsHidden) {
+      panProps = {
+        minDeltaY: 5,
+      };
+    }
 
     return (
       <View style={styles.container}>
@@ -132,9 +147,8 @@ export default class App extends React.Component {
           style={{ flex: 1, transform: [{ translateY: panTranslateY }] }}>
           <PanGestureHandler
             id="pan"
-            maxDeltaY={30}
             waitFor={this.state.scrollWaitsForPan ? '' : 'scroll'}
-            minOffsetY={1}
+            {...panProps}
             onGestureEvent={this._onScrollPanGestureEvent}
             onHandlerStateChange={this._handlePanStateChange}>
             <Animated.View style={{ flex: 1 }}>
@@ -163,7 +177,7 @@ export default class App extends React.Component {
           </PanGestureHandler>
           <View
             style={{
-              height: 60,
+              height: HEADER_HEIGHT,
               position: 'absolute',
               top: 0,
               left: 0,
@@ -177,7 +191,7 @@ export default class App extends React.Component {
               <Animated.View
                 style={{
                   height: HEADER_HEIGHT,
-                  paddingTop: 30,
+                  paddingTop: 50,
                   backgroundColor: 'red',
                   transform: [{ translateY: headerTranslateY }],
                 }}>
