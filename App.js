@@ -90,41 +90,53 @@ export default class App extends React.Component {
       extrapolate: 'clamp',
     });
 
+    const panTranslateY = this.state.panY.interpolate({
+      inputRange: [0, WINDOW_HEIGHT],
+      outputRange: [0, WINDOW_HEIGHT],
+      extrapolate: 'clamp',
+    });
+
     return (
       <View style={styles.container}>
-        <PanGestureHandler
-          id="pan"
-          waitFor="outer-pan"
-          maxDeltaY={30}
-          minOffsetY={1}
-          onGestureEvent={this._onPanGestureEvent}
-          onHandlerStateChange={this._handlePanStateChange}>
-          <AnimatedScrollView
-            id="scroll"
-            contentInset={{ top: HEADER_HEIGHT }}
-            contentOffset={{ y: -HEADER_HEIGHT }}
-            waitFor={this.state.scrollWaitsForPan ? 'pan' : ''}
-            onScrollEndDrag={this._updateScrollState}
-            onScroll={this._onScrollEvent}
-            scrollEventThrottle={1}
-            style={{ height: WINDOW_HEIGHT }}>
-            <View>{this.state.items}</View>
-          </AnimatedScrollView>
-        </PanGestureHandler>
         <Animated.View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: HEADER_HEIGHT,
-            paddingTop: 30,
-            backgroundColor: 'red',
-            transform: [{ translateY: headerTranslateY }],
-          }}>
-          <Text style={{ fontSize: 18, color: '#fff', textAlign: 'center' }}>
-            Hello there
-          </Text>
+          style={{ flex: 1, transform: [{ translateY: panTranslateY }] }}>
+          <PanGestureHandler
+            id="pan"
+            waitFor="outer-pan"
+            maxDeltaY={30}
+            minOffsetY={1}
+            onGestureEvent={this._onPanGestureEvent}
+            onHandlerStateChange={this._handlePanStateChange}>
+            <AnimatedScrollView
+              id="scroll"
+              contentInset={{ top: HEADER_HEIGHT }}
+              contentOffset={{ y: -HEADER_HEIGHT }}
+              waitFor={this.state.scrollWaitsForPan ? 'pan' : ''}
+              onScrollEndDrag={this._updateScrollState}
+              onScroll={this._onScrollEvent}
+              scrollEventThrottle={1}
+              style={{ height: WINDOW_HEIGHT }}>
+              <View>{this.state.items}</View>
+            </AnimatedScrollView>
+          </PanGestureHandler>
+          <PanGestureHandler>
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: HEADER_HEIGHT,
+                paddingTop: 30,
+                backgroundColor: 'red',
+                transform: [{ translateY: headerTranslateY }],
+              }}>
+              <Text
+                style={{ fontSize: 18, color: '#fff', textAlign: 'center' }}>
+                Hello there
+              </Text>
+            </Animated.View>
+          </PanGestureHandler>
         </Animated.View>
       </View>
     );
