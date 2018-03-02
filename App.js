@@ -3,10 +3,12 @@ import {
   Animated,
   Image,
   Dimensions,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Camera } from 'expo';
 import {
   PanGestureHandler,
   ScrollView,
@@ -53,7 +55,7 @@ export default class App extends React.Component {
     const panY = new Animated.Value(0);
     const scrollY = new Animated.Value(-HEADER_HEIGHT);
 
-    this._onScrollPanGestureEvent = Animated.event(
+    this._onPanGestureEvent = Animated.event(
       [{ nativeEvent: { translationY: panY } }],
       { useNativeDriver: true }
     );
@@ -66,6 +68,7 @@ export default class App extends React.Component {
     this.state = {
       items: getItems(),
       scrollY,
+      modalIsAnimating: false,
       scrollWaitsForPan: true,
       panY,
       modalIsHidden: false,
@@ -82,23 +85,38 @@ export default class App extends React.Component {
 
   _handlePanStateChange = e => {
     const { oldState, state } = e.nativeEvent;
-    console.log(e.nativeEvent);
 
-    if (state === State.END) {
+    if (oldState === State.ACTIVE && state === State.END) {
       this._handleReleasePan(e);
     }
   };
 
   _handleReleasePan = e => {
     const { oldState, state, translationY, velocityY } = e.nativeEvent;
+    const { modalIsHidden } = this.state;
 
-    let toValue = 0;
-    if (translationY > WINDOW_HEIGHT / 3) {
-      toValue = WINDOW_HEIGHT;
+    let toValue;
+
+    this._scrollView.getNode().scrollTo({ y: -HEADER_HEIGHT });
+    if (modalIsHidden) {
+      if (translationY < -WINDOW_HEIGHT / 3 || velocityY < -3000) {
+        toValue = 0;
+      } else {
+        toValue = WINDOW_HEIGHT;
+      }
+    } else {
+      if (translationY > WINDOW_HEIGHT / 3 || velocityY > 600) {
+        toValue = WINDOW_HEIGHT;
+      } else {
+        toValue = 0;
+      }
     }
 
     this.state.panY.flattenOffset();
 
+    requestAnimationFrame(() => {
+      this.setState({ modalIsAnimating: true });
+    });
     Animated.spring(this.state.panY, {
       toValue,
       stiffness: 3000,
@@ -106,17 +124,19 @@ export default class App extends React.Component {
       mass: 3,
       useNativeDriver: this.state.panY.__isNative,
     }).start(({ finished }) => {
-      this.state.panY.extractOffset();
-      this.state.panY.setValue(0);
-      let modalIsHidden = toValue !== 0;
-      console.log({ modalIsHidden: modalIsHidden ? 'true' : 'false' });
+      this.setState({ modalIsAnimating: false });
       if (finished) {
+        this.state.panY.extractOffset();
+        let modalIsHidden = toValue !== 0;
         this.setState({ modalIsHidden });
       }
     });
   };
 
   render() {
+    const animatedIf = (cond, a, b) => {
+      return Animated.add(Animated.multiply(cond, a), Animated.add(!cond, b));
+    };
     const headerTranslateY = this.state.scrollY.interpolate({
       inputRange: [-HEADER_HEIGHT, 0],
       outputRange: [0, -HEADER_HEIGHT],
@@ -143,27 +163,37 @@ export default class App extends React.Component {
 
     return (
       <View style={styles.container}>
+        <Camera style={StyleSheet.absoluteFill} />
         <Animated.View
-          style={{ flex: 1, transform: [{ translateY: panTranslateY }] }}>
+          style={{
+            flex: 1,
+            backgroundColor: '#fff',
+            transform: [{ translateY: panTranslateY }],
+          }}>
           <PanGestureHandler
             id="pan"
             waitFor={this.state.scrollWaitsForPan ? '' : 'scroll'}
             {...panProps}
-            onGestureEvent={this._onScrollPanGestureEvent}
+            enabled={!this.state.modalIsAnimating}
+            onGestureEvent={this._onPanGestureEvent}
             onHandlerStateChange={this._handlePanStateChange}>
             <Animated.View style={{ flex: 1 }}>
-              <View
-                style={{
-                  height: 200,
-                  position: 'absolute',
-                  top: -200,
-                  left: 0,
-                  right: 0,
-                  backgroundColor: 'green',
-                }}
-              />
+              {this.state.modalIsHidden ? (
+                <View
+                  style={{
+                    height: 200,
+                    position: 'absolute',
+                    top: -200,
+                    left: 0,
+                    right: 0,
+                  }}
+                />
+              ) : null}
               <AnimatedScrollView
                 id="scroll"
+                ref={view => {
+                  this._scrollView = view;
+                }}
                 contentInset={{ top: HEADER_HEIGHT }}
                 contentOffset={{ y: -HEADER_HEIGHT }}
                 waitFor={this.state.scrollWaitsForPan ? 'pan' : ''}
@@ -185,13 +215,15 @@ export default class App extends React.Component {
             }}>
             <PanGestureHandler
               minDeltaY={10}
+              enabled={!this.state.modalIsAnimating}
               onHandlerStateChange={this._handlePanStateChange}
               shouldCancelWhenOutside={false}
-              onGestureEvent={this._onScrollPanGestureEvent}>
+              onGestureEvent={this._onPanGestureEvent}>
               <Animated.View
                 style={{
                   height: HEADER_HEIGHT,
-                  paddingTop: 50,
+                  justifyContent: 'center',
+                  paddingTop: 30,
                   backgroundColor: 'red',
                   transform: [{ translateY: headerTranslateY }],
                 }}>
@@ -203,6 +235,8 @@ export default class App extends React.Component {
             </PanGestureHandler>
           </View>
         </Animated.View>
+
+        <StatusBar barStyle="light-content" />
       </View>
     );
   }
